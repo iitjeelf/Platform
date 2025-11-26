@@ -1,0 +1,125 @@
+# CELL 3: Online Deployment (Optional - for web access)
+from pyngrok import ngrok
+import threading
+import socket
+
+def find_free_port():
+    """Find a free port to run the application"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        return s.getsockname()[1]
+
+def deploy_online():
+    """Deploy the interface online using ngrok"""
+    port = find_free_port()
+    
+    # Create a simple Streamlit app for online access
+    streamlit_code = '''
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from PIL import Image
+import io
+import base64
+
+st.set_page_config(page_title="Data Analysis Platform", layout="wide")
+
+# Authentication
+st.sidebar.title("🔐 Authentication")
+api_key = st.sidebar.text_input("Enter API Key:", type="password")
+
+if api_key and len(api_key) > 10:
+    st.sidebar.success("✅ Authenticated")
+    
+    st.title("📊 Online Data Analysis Platform")
+    st.write(f"Welcome! Using API Key: {api_key[:8]}...{api_key[-4:]}")
+    
+    # File upload
+    uploaded_file = st.file_uploader("Upload your data file", type=['csv', 'xlsx'])
+    
+    if uploaded_file:
+        if uploaded_file.name.endswith('.csv'):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
+        
+        st.success(f"✅ Loaded {uploaded_file.name}")
+        st.write(f"**Dataset Shape:** {df.shape}")
+        
+        # Tabs for different functionalities
+        tab1, tab2, tab3 = st.tabs(["Data Preview", "Analysis", "Visualization"])
+        
+        with tab1:
+            st.subheader("Data Preview")
+            st.dataframe(df.head())
+            
+            st.subheader("Dataset Info")
+            st.write(f"**Columns:** {len(df.columns)}")
+            st.write(f"**Memory Usage:** {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+        
+        with tab2:
+            st.subheader("Statistical Analysis")
+            st.dataframe(df.describe())
+            
+            st.subheader("Null Values")
+            null_count = df.isnull().sum()
+            if null_count.sum() > 0:
+                st.dataframe(pd.DataFrame({
+                    'Null Count': null_count,
+                    'Null %': (null_count / len(df)) * 100
+                }))
+            else:
+                st.success("No null values found!")
+        
+        with tab3:
+            st.subheader("Data Visualization")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                x_axis = st.selectbox("X Axis", df.columns)
+            with col2:
+                y_axis = st.selectbox("Y Axis", df.select_dtypes(include=[np.number]).columns)
+            
+            if st.button("Generate Scatter Plot"):
+                fig = px.scatter(df, x=x_axis, y=y_axis)
+                st.plotly_chart(fig)
+    
+else:
+    st.warning("🔐 Please enter a valid API key to continue")
+
+'''
+    
+    # Save Streamlit app
+    with open('app.py', 'w') as f:
+        f.write(streamlit_code)
+    
+    # Start ngrok tunnel
+    public_url = ngrok.connect(port)
+    
+    st.info(f"🌐 Your online interface is available at: {public_url}")
+    st.info("The interface will automatically open in a new tab.")
+    
+    # Display the URL
+    display(HTML(f'<h3><a href="{public_url}" target="_blank">🚀 Open Online Interface</a></h3>'))
+
+# Option to deploy online
+deploy_online_btn = widgets.Button(
+    description="🌐 Deploy Online Interface",
+    button_style='success',
+    layout={'width': '250px'}
+)
+
+deploy_output = widgets.Output()
+
+def on_deploy_click(b):
+    with deploy_output:
+        clear_output()
+        print("🔄 Deploying online interface...")
+        deploy_online()
+
+deploy_online_btn.on_click(on_deploy_click)
+
+display(widgets.HBox([deploy_online_btn]))
+display(deploy_output)
